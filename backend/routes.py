@@ -1,11 +1,7 @@
-from . import app
-import os
 import json
+from . import app
+from .data_storage import manager, data, json_url
 from flask import jsonify, request, make_response, abort, url_for  # noqa; F401
-
-SITE_ROOT = os.path.realpath(os.path.dirname(__file__))
-json_url = os.path.join(SITE_ROOT, "data", "pictures.json")
-data: list = json.load(open(json_url))
 
 ######################################################################
 # RETURN HEALTH OF THE APP
@@ -35,7 +31,8 @@ def count():
 ######################################################################
 @app.route("/picture", methods=["GET"])
 def get_pictures():
-    pass
+    res = {picture["id"]: picture["pic_url"] for picture in data}
+    return res, 200
 
 ######################################################################
 # GET A PICTURE
@@ -44,15 +41,26 @@ def get_pictures():
 
 @app.route("/picture/<int:id>", methods=["GET"])
 def get_picture_by_id(id):
-    pass
-
+    manager_id = manager.checking_the_index(id)
+    if manager_id is False:
+        return "Not Found", 404
+    return jsonify(data[manager_id])
 
 ######################################################################
 # CREATE A PICTURE
 ######################################################################
 @app.route("/picture", methods=["POST"])
 def create_picture():
-    pass
+    new_picture = request.get_json()
+    if not new_picture:
+        return {"Message": "Invalid input, no data provided"}, 400
+
+    add_index = manager.add_index(new_picture["id"])
+    if add_index is False:
+        return {"Message": f"picture with id {new_picture['id']} already present"}, 302
+
+    data.append(new_picture)
+    return {"Message": "Picture created", "id": new_picture["id"]}, 201
 
 ######################################################################
 # UPDATE A PICTURE
@@ -61,11 +69,22 @@ def create_picture():
 
 @app.route("/picture/<int:id>", methods=["PUT"])
 def update_picture(id):
-    pass
+    index = manager.checking_the_index(id)
+    if index is False:
+        return jsonify("The picture was not found"), 404
+    our_data = data[index]
+    get_data = request.get_json()
+    for key in get_data.keys():
+        our_data[key] = get_data[key]
+    return 201
+
 
 ######################################################################
 # DELETE A PICTURE
 ######################################################################
 @app.route("/picture/<int:id>", methods=["DELETE"])
 def delete_picture(id):
-    pass
+    if manager.checking_the_index(id) is False:
+        return jsonify("The picture was not found"), 404
+    manager.delete_index(id)
+    return "", 204
